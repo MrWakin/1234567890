@@ -75,18 +75,24 @@ async def tap_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if query.data == "a":
         await query.message.reply_text("Лютые анекдоты уже скоро!")
+        return ConversationHandler.END
     elif query.data == "foto":
         photo_paths = ["food1.jpg", "me.jpg", "no.jpg"]
         media_group = [InputMediaPhoto(open(photo, "rb")) for photo in photo_paths]
         await query.message.reply_media_group(media_group)
+        return ConversationHandler.END
     elif query.data == "menu":
         await query.message.reply_text("Меню скоро будет доступно!")
+        return ConversationHandler.END
     elif query.data == "donat":
         await query.message.reply_text("На булочку: 4441111137101667")
+        return ConversationHandler.END
     elif query.data == "book":
         return DATE_START
     else:
         await query.message.reply_text("Попробуйте снова /start.")
+        return ConversationHandler.END
+
 
 # Шаги для бронирования
 async def date_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -156,7 +162,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 add_booking = ConversationHandler(
-    entry_points=[CallbackQueryHandler(add_booking, pattern="book")],
+    entry_points=[CallbackQueryHandler(add_booking, pattern="^(a|foto|menu|donat|book)$")],
     states={
         DATE_START: [MessageHandler(filters.TEXT & ~filters.COMMAND, date_start)],
         DATE_END: [MessageHandler(filters.TEXT & ~filters.COMMAND, date_end)],
@@ -168,7 +174,6 @@ add_booking = ConversationHandler(
 
 # Регистрация обработчиков
 app.add_handler(CommandHandler("start", start_command))
-app.add_handler(CallbackQueryHandler(tap_button))
 app.add_handler(add_booking)
 
 # Запуск приложения
