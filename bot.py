@@ -1,7 +1,7 @@
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, \
-    InputMediaPhoto
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, InputMediaPhoto
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ConversationHandler, MessageHandler, filters, ContextTypes
 import sqlite3
+import random
 
 # Константы для этапов диалога
 DATE_START, DATE_END, GUESTS, ROOM_TYPE = range(4)
@@ -66,7 +66,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Добро пожаловать! Выберите действие:", reply_markup=reply_markup)
-#-----------------------------------------------------
 
 # Обработка кнопок
 async def tap_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -74,25 +73,29 @@ async def tap_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     if query.data == "a":
-        await query.message.reply_text("Лютые анекдоты уже скоро!")
-        return ConversationHandler.END
-    elif query.data == "foto":
-        photo_paths = ["food1.jpg", "me.jpg", "no.jpg"]
-        media_group = [InputMediaPhoto(open(photo, "rb")) for photo in photo_paths]
-        await query.message.reply_media_group(media_group)
-        return ConversationHandler.END
+        random_joke = random.choice([
+            "Покупайте батарейки «сынок президента». Батарейки «сынок президента» — не сядет никогда!",
+            "Десять тысяч мужчин разного возраста ответили на вопрос: «Если бы у вас был выбор между новым автомобилем и идеальной женщиной, что бы вы выбрали?» Ответы: — дизель 57%, — бензин 43%.",
+            "Надпись в сортире: НЕ ССЫ, ПРОРВЕМСЯ!",
+            "— Ты считаешь, что шутить про то, что в Африке нет воды это смешно? — Ни капельки.",
+            "— Официант, а почему у меня в супе слуховой аппарат?! — Простите, что вы сказали?"
+        ])
+        await query.message.reply_text(f"Анекдот: {random_joke}")
     elif query.data == "menu":
         await query.message.reply_text("Меню скоро будет доступно!")
-        return ConversationHandler.END
     elif query.data == "donat":
         await query.message.reply_text("На булочку: 4441111137101667")
-        return ConversationHandler.END
+    elif query.data == "foto":
+        # Пример отправки фотографий
+        photo_paths = ["food1.jpg", "me.jpg", "no.jpg"]
+        try:
+            media_group = [InputMediaPhoto(open(photo, "rb")) for photo in photo_paths]
+            await query.message.reply_media_group(media_group)
+        except FileNotFoundError:
+            await query.message.reply_text("Ошибка: фотографии не найдены.")
     elif query.data == "book":
+        await query.message.reply_text("Введите дату заезда (например, 2023-12-25):")
         return DATE_START
-    else:
-        await query.message.reply_text("Попробуйте снова /start.")
-        return ConversationHandler.END
-
 
 # Шаги для бронирования
 async def date_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -111,27 +114,6 @@ async def guests(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text("Выберите тип комнаты:", reply_markup=reply_markup)
     return ROOM_TYPE
-
-# Сохранение данных бронирования
-def add_booking(chat_id, date_start, date_end, guests, room_type):
-    connection = sqlite3.connect("database.db")
-    cursor = connection.cursor()
-    try:
-        cursor.execute("SELECT id FROM users WHERE chat_id = ?", (chat_id,))
-        user_id = cursor.fetchone()
-        if user_id:
-            user_id = user_id[0]
-            cursor.execute("""
-            INSERT INTO bookings (user_id, date_start, date_end, guests, room_type)
-            VALUES (?, ?, ?, ?, ?)
-            """, (user_id, date_start, date_end, guests, room_type))
-            connection.commit()
-        else:
-            print("Пользователь не найден.")
-    except sqlite3.Error as e:
-        print(f"Ошибка при добавлении бронирования: {e}")
-    finally:
-        connection.close()
 
 async def room_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_user.id
@@ -161,8 +143,9 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                     reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
-add_booking = ConversationHandler(
-    entry_points=[CallbackQueryHandler(add_booking, pattern="^(a|foto|menu|donat|book)$")],
+# Обработчик ConversationHandler
+booking_handler = ConversationHandler(
+    entry_points=[CallbackQueryHandler(tap_button)],
     states={
         DATE_START: [MessageHandler(filters.TEXT & ~filters.COMMAND, date_start)],
         DATE_END: [MessageHandler(filters.TEXT & ~filters.COMMAND, date_end)],
@@ -174,7 +157,7 @@ add_booking = ConversationHandler(
 
 # Регистрация обработчиков
 app.add_handler(CommandHandler("start", start_command))
-app.add_handler(add_booking)
+app.add_handler(booking_handler)
 
 # Запуск приложения
 if __name__ == "__main__":
